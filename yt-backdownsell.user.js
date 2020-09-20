@@ -9,7 +9,6 @@
 // @inject-into auto
 // @noframes
 // @homepageURL https://github.com/mkalinski/userscript-yt-backdownsell
-// @downloadURL https://github.com/mkalinski/userscript-yt-backdownsell/releases/latest
 // ==/UserScript==
 (() => {
     "use strict";
