@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        yt-backdownsell
 // @namespace   https://github.com/mkalinski
-// @version     1.0.0
+// @version     1.1.0
 // @description Counteracts youtube's "upselling" dialogs messing with video.
 // @match       https://www.youtube.com/watch
 // @grant       none
@@ -12,73 +12,110 @@
 // ==/UserScript==
 (() => {
     "use strict";
-    const DOWN_SELLING_TIME_MILLISEC = 5000;
+
+    // These values were set using trial and error.
+    // Modify them in case problems come up.
+    const WATCHDOG_TIMEOUT_MILLISEC = 10000;
+    const OVERLAY_POLL_INTERVAL_MILLISEC = 1000;
+    const OVERLAY_CLICK_DELAY_MILLISEC = 3000;
+
+    const THUMBNAIL_OVERLAY_CLASS = "ytp-cued-thumbnail-overlay";
+    const T_PATTERN = "^(?:(?<hours>\\d+)h)?"
+        + "(?:(?<minutes>\\d+)m)?"
+        + "(?<seconds>\\d+)s?$";
 
     function setUp() {
-        const videos = document.getElementsByTagName("video");
+        // There's only one video and one overlay. They never go away.
+        const video = document.querySelector("video");
+        const overlay = document.querySelector(`.${THUMBNAIL_OVERLAY_CLASS}`);
 
-        if (videos.length !== 1) {
-            console.error("Assumed 1 video on page, found", videos.length);
-            return;
+        if (!(video && overlay)) {
+            throw new Error("Could not locate video and thumbnail overlay");
         }
 
-        videos[0].addEventListener("play", downSell);
-    }
-
-    function downSell(event) {
-        const video = event.target;
-        video.removeEventListener("play", downSell);
-
-        preventPause(video);
-
-        const requestedTime = new URLSearchParams(
-            window.location.search
-        ).get("t");
-
-        if (requestedTime) {
-            preventSeekBeforeTime(video, requestedTime);
+        if (video.paused) {
+            watchdogAfterPlay(video, overlay);
+        } else {
+            watchdogPlaying(video, overlay);
         }
     }
 
-    function preventPause(video) {
-        video.addEventListener("pause", handlePreventingPause);
+    function watchdogAfterPlay(video, overlay) {
+        function onPlay() {
+            video.removeEventListener("play", onPlay);
+            watchdogPlaying(video, overlay);
+        }
+
+        video.addEventListener("play", onPlay);
+    }
+
+    function watchdogPlaying(video, overlay) {
+        const endPause = downsellPause(video);
+        const endSeek = downsellSeek(video);
+        const endOverlay = downsellOverlay(overlay);
+
         setTimeout(
-            () => video.removeEventListener("pause", handlePreventingPause),
-            DOWN_SELLING_TIME_MILLISEC,
+            () => {
+                endPause();
+                endSeek();
+                endOverlay();
+            },
+            WATCHDOG_TIMEOUT_MILLISEC
         );
     }
 
-    function handlePreventingPause(event) {
-        const video = event.target;
-        video.play().catch((error) => {
-            console.error("Cannot play immediately after pause", error);
-        });
-    }
-
-    function preventSeekBeforeTime(video, timeString) {
-        const time = parseT(timeString);
-
-        if (Number.isNaN(time) || time <= 0) {
-            return;
+    function downsellPause(video) {
+        function onPause() {
+            video.play();
         }
 
-        const handler = getPreventingSeekHandler(time);
-        video.addEventListener("timeupdate", handler);
-        setTimeout(
-            () => video.removeEventListener("timeupdate", handler),
-            DOWN_SELLING_TIME_MILLISEC
+        video.addEventListener("pause", onPause);
+
+        return () => video.removeEventListener("pause", onPause);
+    }
+
+    function downsellSeek(video) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const timeString = urlParams.get("t");
+        const time = timeString ? parseT(timeString) : 0;
+
+        if (!time) {
+            return () => {};
+        }
+
+        function onTimeUpdate() {
+            if (video.currentTime < time) {
+                video.currentTime = time;
+            }
+        }
+
+        video.addEventListener("timeupdate", onTimeUpdate);
+
+        return () => video.removeEventListener("timeupdate", onTimeUpdate);
+    }
+
+    function downsellOverlay(overlay) {
+        const overlayPoll = setInterval(
+            () => {
+                if (overlay.style.display !== "none") {
+                    setTimeout(
+                        () => overlay.click(),
+                        OVERLAY_CLICK_DELAY_MILLISEC
+                    );
+                    clearInterval(overlayPoll);
+                }
+            },
+            OVERLAY_POLL_INTERVAL_MILLISEC
         );
+
+        return () => clearInterval(overlayPoll);
     }
 
     function parseT(timeString) {
-        const match = new RegExp(
-            "^(?:(?<hours>\\d+)h)?"
-            + "(?:(?<minutes>\\d+)m)?"
-            + "(?<seconds>\\d+)s?$"
-        ).exec(timeString);
+        const tRegExp = new RegExp(T_PATTERN);
+        const match = tRegExp.exec(timeString);
 
         if (!match) {
-            console.warn("Incompatible `t` value", timeString);
             return 0;
         }
 
@@ -95,18 +132,5 @@
         return seconds;
     }
 
-    function getPreventingSeekHandler(minSeekTime) {
-        return (event) => {
-            const video = event.target;
-
-            if (video.currentTime < minSeekTime) {
-                video.currentTime = minSeekTime;
-            }
-        };
-    }
-
-    setUp();
-    // yt-navigate-finish is a custom event fired when navigating to new video
-    // in the same window (URL is updated); then repeat setup for new video
     window.addEventListener("yt-navigate-finish", setUp);
 })();
