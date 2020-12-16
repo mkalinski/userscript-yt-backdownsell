@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name        yt-backdownsell
 // @namespace   https://github.com/mkalinski
-// @version     1.1.0
+// @version     1.2.0
 // @description Counteracts youtube's "upselling" dialogs messing with video.
-// @match       https://www.youtube.com/watch
+// @match       https://www.youtube.com
 // @grant       none
 // @run-at      document-end
 // @inject-into auto
@@ -30,7 +30,7 @@
         const overlay = document.querySelector(`.${THUMBNAIL_OVERLAY_CLASS}`);
 
         if (!(video && overlay)) {
-            throw new Error("Could not locate video and thumbnail overlay");
+            return;
         }
 
         if (video.paused) {
