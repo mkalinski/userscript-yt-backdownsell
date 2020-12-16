@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name        yt-backdownsell
 // @namespace   https://github.com/mkalinski
-// @version     1.2.0
+// @version     1.2.1
 // @description Counteracts youtube's "upselling" dialogs messing with video.
-// @match       https://www.youtube.com
+// @match       https://www.youtube.com/*
 // @grant       none
 // @run-at      document-end
 // @inject-into auto
