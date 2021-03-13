@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        yt-backdownsell
 // @namespace   https://github.com/mkalinski
-// @version     1.2.1
+// @version     1.3.0
 // @description Counteracts youtube's "upselling" dialogs messing with video.
 // @match       https://www.youtube.com/*
 // @grant       none
@@ -17,7 +17,7 @@
     // Modify them in case problems come up.
     const WATCHDOG_TIMEOUT_MILLISEC = 10000;
     const OVERLAY_POLL_INTERVAL_MILLISEC = 1000;
-    const OVERLAY_CLICK_DELAY_MILLISEC = 3000;
+    const OVERLAY_CLICK_DELAY_MILLISEC = 2500;
 
     const THUMBNAIL_OVERLAY_CLASS = "ytp-cued-thumbnail-overlay";
     const T_PATTERN = "^(?:(?<hours>\\d+)h)?"
@@ -65,8 +65,13 @@
     }
 
     function downsellPause(video) {
+        let notYetPaused = true;
+
         function onPause() {
-            video.play();
+            if (notYetPaused) {
+                notYetPaused = false;
+                video.play();
+            }
         }
 
         video.addEventListener("pause", onPause);
